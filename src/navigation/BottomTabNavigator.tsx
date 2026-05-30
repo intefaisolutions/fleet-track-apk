@@ -50,9 +50,9 @@ export const BottomTabNavigator = () => {
         component={AddExpenseMainScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Icon name="plus-box" size={size || 24} color={color} />
+            <Icon name="plus-box" size={size || 22} color={color} />
           ),
-          tabBarLabel: 'Add Expense'
+          tabBarLabel: 'Add Expense',
         }}
       />
       <Tab.Screen 
@@ -62,7 +62,7 @@ export const BottomTabNavigator = () => {
           tabBarIcon: ({ color, size }) => (
             <Icon name="receipt" size={size || 24} color={color} />
           ),
-          tabBarLabel: 'My Expenses'
+          tabBarLabel: 'History'
         }}
       />
       <Tab.Screen 

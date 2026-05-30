@@ -6,15 +6,28 @@ interface CustomInputProps extends TextInputProps {
   label: string;
   error?: string;
   rightIcon?: React.ReactNode;
+  containerStyle?: object;
+  labelStyle?: object;
+  inputContainerStyle?: object;
+  inputStyle?: object;
 }
 
-export const CustomInput: React.FC<CustomInputProps> = ({ label, error, rightIcon, ...props }) => {
+export const CustomInput: React.FC<CustomInputProps> = ({
+  label,
+  error,
+  rightIcon,
+  containerStyle,
+  labelStyle,
+  inputContainerStyle,
+  inputStyle,
+  ...props
+}) => {
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputContainer, error ? styles.inputError : null]}>
+    <View style={[styles.container, containerStyle]}>
+      <Text style={[styles.label, labelStyle]}>{label}</Text>
+      <View style={[styles.inputContainer, inputContainerStyle, error ? styles.inputError : null]}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, inputStyle]}
           placeholderTextColor={colors.textLight}
           {...props}
         />

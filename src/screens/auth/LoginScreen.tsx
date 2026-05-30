@@ -38,8 +38,21 @@ export const LoginScreen = () => {
       setLoading(false);
       if (email.toLowerCase() === 'driver@test.com' && password === 'password') {
         dispatch(loginSuccess({
-          user: { id: 1, name: 'John Driver', role: 'driver', vehicle: 'DL 01 AB 1234' },
-          token: 'dummy-token-123'
+          user: {
+            id: 1,
+            name: 'Suresh Yadav',
+            initials: 'SY',
+            role: 'driver',
+            designation: 'Fleet Driver #FT-9921',
+            phone: '+91 98765 43210',
+            email: email.toLowerCase(),
+            vehicleModel: 'Tata Ace',
+            vehicleNo: 'HR 26 AB 1234',
+            vehicle: 'HR 26 AB 1234',
+            owner: 'Rajesh Sharma',
+            ownerPhone: '+91 99987 65432',
+          },
+          token: 'dummy-token-123',
         }));
       } else {
         Alert.alert('Error', 'Invalid credentials. Use driver@test.com / password');

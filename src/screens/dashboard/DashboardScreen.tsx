@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RootState } from '../../redux/store';
+import { mergeDriverProfile } from '../../constants/driver';
 
 const BRAND_DARK = '#02689B';
 const BRAND_LIGHT = '#00A3E0';
@@ -16,6 +18,8 @@ const BORDER_COLOR = '#E5E7EB';
 export const DashboardScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const expenses = useSelector((state: RootState) => state.expenses.expenses);
+  const authUser = useSelector((state: RootState) => state.auth.user);
+  const driver = mergeDriverProfile(authUser);
 
   const calculateStats = () => {
     let todayTotal = 0;
@@ -49,12 +53,12 @@ export const DashboardScreen = ({ navigation }: any) => {
   const stats = calculateStats();
 
   const driverData = {
-    name: 'Suresh Yadav',
-    vehicleNo: 'HR 26 AB 1234',
-    vehicleModel: 'Tata Ace',
-    owner: 'Rajesh Sharma',
+    name: driver.name,
+    vehicleNo: driver.vehicleNo,
+    vehicleModel: driver.vehicleModel,
+    owner: driver.owner,
     lastService: '12 Oct 2023',
-    odometer: '45,230 km'
+    odometer: '45,230 km',
   };
 
   return (
@@ -73,8 +77,12 @@ export const DashboardScreen = ({ navigation }: any) => {
             <Text style={styles.headerSubtitle}>{driverData.name}</Text>
           </View>
         </View>
-        <TouchableOpacity>
-          <Text style={styles.bellIcon}>🔔</Text>
+        <TouchableOpacity
+          style={styles.bellBtn}
+          activeOpacity={0.7}
+          onPress={() => Alert.alert('Notifications', 'No new notifications')}
+        >
+          <Icon name="bell-outline" size={22} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -158,7 +166,7 @@ export const DashboardScreen = ({ navigation }: any) => {
           
           <TouchableOpacity 
             style={styles.dutyCard}
-            onPress={() => navigation.navigate('FuelExpense')}
+            onPress={() => navigation.navigate('AddExpenseTab')}
           >
             <View style={styles.dutyCardInner}>
               <Text style={styles.dutyIcon}>⛽</Text>
@@ -197,7 +205,13 @@ const styles = StyleSheet.create({
   avatarImage: { width: '100%', height: '100%' },
   headerTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
   headerSubtitle: { color: '#E0F2FE', fontSize: 13 },
-  bellIcon: { fontSize: 20, color: '#FFF' },
+  bellBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   
   // Content
   content: { backgroundColor: BG_COLOR, flexGrow: 1, padding: 16, paddingBottom: 40 },

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, StatusBar, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RootState } from '../../redux/store';
-import { Expense } from '../../redux/slices/expenseSlice';
+import { formatDisplayDate } from '../../utils/dateUtils';
+import { CalendarDatePicker } from '../../components/CalendarDatePicker';
 
 const BRAND_DARK = '#02689B';
 const BRAND_LIGHT = '#00A3E0'; // or bright blue like the screenshot
@@ -18,8 +20,8 @@ export const MyExpensesScreen = ({ navigation }: any) => {
   const expenses = useSelector((state: RootState) => state.expenses.expenses);
   const [filter, setFilter] = useState('All Categories');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [dateSort, setDateSort] = useState('Newest');
-  const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [dateFilter, setDateFilter] = useState('all');
+  const [showDateCalendar, setShowDateCalendar] = useState(false);
 
   const filteredExpenses = expenses.filter(expense => {
     if (filter === 'All Categories') return true;
@@ -28,17 +30,19 @@ export const MyExpensesScreen = ({ navigation }: any) => {
     if (filter === 'Repair') return expense.icon === '🔧' || expense.title.includes('Repair');
     if (filter === 'Daily Report') return expense.title.includes('Daily Report');
     return true;
+  }).filter(expense => {
+    if (dateFilter === 'all') return true;
+    return expense.date === dateFilter;
   });
 
   const calculateTotal = () => {
     return filteredExpenses.reduce((sum, item) => sum + parseFloat((item.amount || '0').replace(/,/g, '')), 0).toLocaleString();
   };
 
-  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
-    const timeA = new Date(a.date).getTime();
-    const timeB = new Date(b.date).getTime();
-    return dateSort === 'Newest' ? timeB - timeA : timeA - timeB;
-  });
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => b.date.localeCompare(a.date));
+
+  const dateFilterLabel =
+    dateFilter === 'all' ? 'All Dates' : formatDisplayDate(dateFilter);
 
   const renderExpense = ({ item }: any) => (
     <TouchableOpacity 
@@ -70,14 +74,20 @@ export const MyExpensesScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={BRAND_DARK} />
+
       {/* Top Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerLeft}>
-          <Text style={styles.logoIcon}>🚚</Text>
+          <Icon name="truck-outline" size={22} color="#FFFFFF" style={styles.logoIcon} />
           <Text style={styles.logoText}>FleetOps</Text>
         </View>
-        <TouchableOpacity>
-          <Text style={styles.bellIcon}>🔔</Text>
+        <TouchableOpacity
+          style={styles.bellBtn}
+          activeOpacity={0.7}
+          onPress={() => Alert.alert('Notifications', 'No new notifications')}
+        >
+          <Icon name="bell-outline" size={22} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -97,9 +107,9 @@ export const MyExpensesScreen = ({ navigation }: any) => {
             <Text style={styles.dropdownText}>{filter}</Text>
             <Text style={styles.dropdownIcon}>˅</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDateDropdown(true)}>
+          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDateCalendar(true)}>
             <Text style={styles.calendarIcon}>📅</Text>
-            <Text style={styles.dateText}>{dateSort}</Text>
+            <Text style={styles.dateText}>{dateFilterLabel}</Text>
           </TouchableOpacity>
         </View>
 
@@ -130,44 +140,38 @@ export const MyExpensesScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Date Sort Modal */}
-      <Modal visible={showDateDropdown} transparent animationType="fade">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowDateDropdown(false)}>
-          <View style={[styles.dropdownMenu, { width: '50%', alignSelf: 'flex-end', marginRight: 16 }]}>
-            {['Newest', 'Oldest'].map(sortType => (
-              <TouchableOpacity 
-                key={sortType} 
-                style={styles.dropdownItem} 
-                onPress={() => { setDateSort(sortType); setShowDateDropdown(false); }}
-              >
-                <Text style={[styles.dropdownItemText, dateSort === sortType && styles.dropdownItemTextActive]}>{sortType}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <CalendarDatePicker
+        visible={showDateCalendar}
+        onClose={() => setShowDateCalendar(false)}
+        selectedDate={dateFilter}
+        onSelectDate={setDateFilter}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  
+  container: { flex: 1, backgroundColor: BRAND_DARK },
+
   // Header
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
-    backgroundColor: '#FFFFFF',
+    paddingBottom: 14,
+    backgroundColor: BRAND_DARK,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  logoIcon: { fontSize: 24, color: BRAND_DARK, marginRight: 8 },
-  logoText: { fontSize: 18, fontWeight: 'bold', color: BRAND_DARK },
-  bellIcon: { fontSize: 20, color: TEXT_DARK },
+  logoIcon: { marginRight: 8 },
+  logoText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF', letterSpacing: 0.2 },
+  bellBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   content: { flex: 1, paddingHorizontal: 16, paddingTop: 16, backgroundColor: '#FFFFFF' },
   pageTitle: { fontSize: 16, color: TEXT_DARK, marginBottom: 16 },

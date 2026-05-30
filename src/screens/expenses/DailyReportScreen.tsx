@@ -11,19 +11,26 @@ export const DailyReportScreen = ({ navigation }: any) => {
   const dispatch = useDispatch();
   const [totalKm, setTotalKm] = useState('');
   const [destination, setDestination] = useState('');
+  const [dayExpense, setDayExpense] = useState('');
   const [notes, setNotes] = useState('');
 
   const handleSubmit = () => {
-    if (!totalKm || !destination) {
-      Alert.alert('Error', 'Please fill total KM and destination');
+    if (!totalKm || !destination || !dayExpense) {
+      Alert.alert('Error', 'Please fill total KM, destination and day expense');
+      return;
+    }
+
+    const expenseAmount = parseFloat(dayExpense.replace(/,/g, ''));
+    if (Number.isNaN(expenseAmount) || expenseAmount < 0) {
+      Alert.alert('Error', 'Please enter a valid expense amount');
       return;
     }
     
     dispatch(addExpense({
       id: Date.now().toString(),
-      title: `Daily Report: ${destination}`,
+      title: `Daily Report: ${destination} (${totalKm} km)`,
       date: getLocalIsoDate(),
-      amount: '0', 
+      amount: expenseAmount.toFixed(2),
       vehicle: 'HR26AB1234',
       icon: '📝',
       iconBg: '#F3F4F6'
@@ -38,6 +45,13 @@ export const DailyReportScreen = ({ navigation }: any) => {
         <View style={styles.card}>
           <CustomInput label="Total KM Travelled Today *" value={totalKm} onChangeText={setTotalKm} keyboardType="numeric" />
           <CustomInput label="Main Destination(s) *" value={destination} onChangeText={setDestination} />
+          <CustomInput
+            label="Total Expense Today (₹) *"
+            value={dayExpense}
+            onChangeText={setDayExpense}
+            keyboardType="numeric"
+            placeholder="e.g. 4,500"
+          />
           
           <Text style={styles.label}>Additional Notes</Text>
           <TextInput

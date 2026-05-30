@@ -51,11 +51,16 @@ const expenseSlice = createSlice({
   initialState,
   reducers: {
     addExpense: (state, action: PayloadAction<Expense>) => {
-      // Add to beginning of array
       state.expenses.unshift(action.payload);
+    },
+    updateExpense: (state, action: PayloadAction<Expense>) => {
+      const index = state.expenses.findIndex((e) => e.id === action.payload.id);
+      if (index !== -1) {
+        state.expenses[index] = action.payload;
+      }
     },
   },
 });
 
-export const { addExpense } = expenseSlice.actions;
+export const { addExpense, updateExpense } = expenseSlice.actions;
 export default expenseSlice.reducer;

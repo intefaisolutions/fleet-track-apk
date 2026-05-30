@@ -10,6 +10,7 @@ import { TollExpenseScreen } from '../screens/expenses/TollExpenseScreen';
 import { RepairRequestScreen } from '../screens/expenses/RepairRequestScreen';
 import { DailyReportScreen } from '../screens/expenses/DailyReportScreen';
 import { ExpenseDetailScreen } from '../screens/expenses/ExpenseDetailScreen';
+import { EditExpenseScreen } from '../screens/expenses/EditExpenseScreen';
 import { colors } from '../utils/colors';
 
 const Stack = createNativeStackNavigator();
@@ -63,6 +64,11 @@ export const AppNavigator = () => {
               name="ExpenseDetail" 
               component={ExpenseDetailScreen} 
               options={{ title: 'Expense Details' }}
+            />
+            <Stack.Screen 
+              name="EditExpense" 
+              component={EditExpenseScreen} 
+              options={{ title: 'Edit Expense' }}
             />
           </>
         )}
