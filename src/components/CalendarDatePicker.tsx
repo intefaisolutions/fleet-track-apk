@@ -8,13 +8,13 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
+import type { DateRangeFilter } from '../utils/dateUtils';
 
 const ACTIVE_BLUE = '#1DA1F2';
 const BRAND_DARK = '#02689B';
 const CARD_BG = '#FFFFFF';
 const TEXT_DARK = '#111827';
 const TEXT_MUTED = '#6B7280';
-const BORDER_COLOR = '#E5E7EB';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -23,11 +23,13 @@ const MONTHS = [
 
 const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+type DateFilterValue = 'all' | DateRangeFilter;
+
 interface CalendarDatePickerProps {
   visible: boolean;
   onClose: () => void;
-  selectedDate: string | 'all';
-  onSelectDate: (date: string | 'all') => void;
+  selectedValue: DateFilterValue;
+  onApply: (value: DateFilterValue) => void;
 }
 
 const parseIsoDate = (iso: string) => {
@@ -44,34 +46,42 @@ const getDaysInMonth = (year: number, month: number) =>
 const getFirstDayOfMonth = (year: number, month: number) =>
   new Date(year, month, 1).getDay();
 
+const normalizeRange = (from: string, to: string): DateRangeFilter =>
+  from <= to ? { from, to } : { from: to, to: from };
+
 export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
   visible,
   onClose,
-  selectedDate,
-  onSelectDate,
+  selectedValue,
+  onApply,
 }) => {
   const today = new Date();
   const initial =
-    selectedDate !== 'all'
-      ? parseIsoDate(selectedDate)
+    selectedValue !== 'all'
+      ? parseIsoDate(selectedValue.from)
       : { year: today.getFullYear(), month: today.getMonth(), day: today.getDate() };
 
   const [viewYear, setViewYear] = useState(initial.year);
   const [viewMonth, setViewMonth] = useState(initial.month);
   const [showYearPicker, setShowYearPicker] = useState(false);
-  const [pendingDate, setPendingDate] = useState<string | 'all'>(selectedDate);
-
+  const [rangeStart, setRangeStart] = useState<string | null>(
+    selectedValue !== 'all' ? selectedValue.from : null,
+  );
+  const [rangeEnd, setRangeEnd] = useState<string | null>(
+    selectedValue !== 'all' ? selectedValue.to : null,
+  );
   useEffect(() => {
     if (!visible) return;
     const next =
-      selectedDate !== 'all'
-        ? parseIsoDate(selectedDate)
+      selectedValue !== 'all'
+        ? parseIsoDate(selectedValue.from)
         : { year: today.getFullYear(), month: today.getMonth(), day: today.getDate() };
     setViewYear(next.year);
     setViewMonth(next.month);
     setShowYearPicker(false);
-    setPendingDate(selectedDate);
-  }, [visible, selectedDate]);
+    setRangeStart(selectedValue !== 'all' ? selectedValue.from : null);
+    setRangeEnd(selectedValue !== 'all' ? selectedValue.to : null);
+  }, [visible, selectedValue]);
 
   const years = useMemo(() => {
     const current = today.getFullYear();
@@ -116,43 +126,77 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
     }
   };
 
-  const handleSelectDay = (day: number) => {
-    const iso = toIsoDate(viewYear, viewMonth, day);
-    setPendingDate(iso);
-    onSelectDate(iso);
-    onClose();
+  const isInSelectedRange = (iso: string) => {
+    if (!rangeStart || !rangeEnd) return false;
+    const range = normalizeRange(rangeStart, rangeEnd);
+    return iso >= range.from && iso <= range.to;
   };
 
-  const activeSelection = pendingDate;
+  const handleSelectDay = (day: number) => {
+    const iso = toIsoDate(viewYear, viewMonth, day);
+
+    if (!rangeStart || (rangeStart && rangeEnd)) {
+      setRangeStart(iso);
+      setRangeEnd(null);
+      return;
+    }
+
+    const range = normalizeRange(rangeStart, iso);
+    setRangeStart(range.from);
+    setRangeEnd(range.to);
+  };
+
+  const handleApply = () => {
+    if (rangeStart && rangeEnd) {
+      onApply(normalizeRange(rangeStart, rangeEnd));
+      onClose();
+      return;
+    }
+    if (rangeStart) {
+      onApply({ from: rangeStart, to: rangeStart });
+      onClose();
+    }
+  };
+
+  const canApply = Boolean(rangeStart);
+
+  const rangeHint = !rangeStart
+    ? 'Tap start date'
+    : !rangeEnd
+      ? 'Tap end date'
+      : 'Tap Apply to filter';
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.header}>
-            <Text style={styles.title}>Select Date</Text>
+            <Text style={styles.title}>Select Date Range</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text style={styles.closeBtn}>✕</Text>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[styles.allDatesBtn, activeSelection === 'all' && styles.allDatesBtnActive]}
+            style={[styles.allDatesBtn, selectedValue === 'all' && styles.allDatesBtnActive]}
             onPress={() => {
-              setPendingDate('all');
-              onSelectDate('all');
+              setRangeStart(null);
+              setRangeEnd(null);
+              onApply('all');
               onClose();
             }}
           >
             <Text
               style={[
                 styles.allDatesText,
-                activeSelection === 'all' && styles.allDatesTextActive,
+                selectedValue === 'all' && styles.allDatesTextActive,
               ]}
             >
               All Dates
             </Text>
           </TouchableOpacity>
+
+          <Text style={styles.rangeHint}>{rangeHint}</Text>
 
           <View style={styles.monthRow}>
             <TouchableOpacity style={styles.navBtn} onPress={goPrevMonth} activeOpacity={0.7}>
@@ -216,7 +260,9 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
                   }
 
                   const iso = toIsoDate(viewYear, viewMonth, day);
-                  const isSelected = activeSelection === iso;
+                  const isStart = rangeStart === iso;
+                  const isEnd = rangeEnd === iso;
+                  const inRange = isInSelectedRange(iso);
                   const isToday =
                     day === today.getDate() &&
                     viewMonth === today.getMonth() &&
@@ -225,7 +271,11 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
                   return (
                     <TouchableOpacity
                       key={iso}
-                      style={styles.dayCell}
+                      style={[
+                        styles.dayCell,
+                        inRange && styles.dayCellInRange,
+                        (isStart || isEnd) && styles.dayCellSelected,
+                      ]}
                       onPress={() => handleSelectDay(day)}
                       activeOpacity={0.6}
                     >
@@ -234,12 +284,12 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
                           style={[
                             styles.dayText,
                             isToday && styles.dayTextToday,
-                            isSelected && styles.dayTextSelected,
+                            inRange && styles.dayTextInRange,
+                            (isStart || isEnd) && styles.dayTextSelected,
                           ]}
                         >
                           {day}
                         </Text>
-                        {isSelected ? <View style={styles.selectedDot} /> : <View style={styles.dotSpacer} />}
                       </View>
                     </TouchableOpacity>
                   );
@@ -247,6 +297,15 @@ export const CalendarDatePicker: React.FC<CalendarDatePickerProps> = ({
               </View>
             </View>
           )}
+
+          <TouchableOpacity
+            style={[styles.applyBtn, !canApply && styles.applyBtnDisabled]}
+            onPress={handleApply}
+            disabled={!canApply}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.applyBtnText}>Apply Filter</Text>
+          </TouchableOpacity>
         </Pressable>
       </Pressable>
     </Modal>
@@ -291,13 +350,18 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
     backgroundColor: '#F3F4F6',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   allDatesBtnActive: {
     backgroundColor: '#E8F4FC',
   },
   allDatesText: { fontSize: 13, color: TEXT_MUTED, fontWeight: '500' },
   allDatesTextActive: { color: BRAND_DARK, fontWeight: '600' },
+  rangeHint: {
+    fontSize: 12,
+    color: TEXT_MUTED,
+    marginBottom: 12,
+  },
   monthRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -358,6 +422,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  dayCellInRange: {
+    backgroundColor: '#E8F4FC',
+  },
+  dayCellSelected: {
+    backgroundColor: ACTIVE_BLUE,
+    borderRadius: 8,
+  },
   dayContent: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -373,20 +444,28 @@ const styles = StyleSheet.create({
     color: ACTIVE_BLUE,
     fontWeight: '600',
   },
-  dayTextSelected: {
+  dayTextInRange: {
     color: BRAND_DARK,
+    fontWeight: '500',
+  },
+  dayTextSelected: {
+    color: '#FFFFFF',
     fontWeight: '700',
   },
-  selectedDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+  applyBtn: {
+    marginTop: 14,
     backgroundColor: ACTIVE_BLUE,
-    marginTop: 3,
+    borderRadius: 8,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  dotSpacer: {
-    width: 5,
-    height: 5,
-    marginTop: 3,
+  applyBtnDisabled: {
+    backgroundColor: '#93C5FD',
+  },
+  applyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

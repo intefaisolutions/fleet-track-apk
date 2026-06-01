@@ -494,7 +494,13 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
                 onPress={() => setActiveCategory(cat.id)}
                 activeOpacity={0.85}
               >
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{cat.label}</Text>
+                <Text
+                  style={[styles.tabText, isActive && styles.tabTextActive]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {cat.label}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -576,19 +582,26 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 120, flexGrow: 1 },
   tabsRow: { paddingBottom: 12, gap: 8 },
   tab: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    width: 72,
+    height: 34,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: MONO.active,
     backgroundColor: MONO.surface,
     marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabActive: {
     backgroundColor: MONO.active,
     borderColor: MONO.active,
   },
-  tabText: { fontSize: 12, fontWeight: '600', color: MONO.active },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: MONO.active,
+    textAlign: 'center',
+  },
   tabTextActive: { color: MONO.surface },
   illustrationCard: {
     backgroundColor: MONO.surface,

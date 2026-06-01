@@ -4,7 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RootState } from '../../redux/store';
-import { formatDisplayDate } from '../../utils/dateUtils';
+import {
+  formatDateRangeLabel,
+  isDateInRange,
+  type DateRangeFilter,
+} from '../../utils/dateUtils';
 import { CalendarDatePicker } from '../../components/CalendarDatePicker';
 
 const BRAND_DARK = '#02689B';
@@ -20,7 +24,7 @@ export const MyExpensesScreen = ({ navigation }: any) => {
   const expenses = useSelector((state: RootState) => state.expenses.expenses);
   const [filter, setFilter] = useState('All Categories');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [dateFilter, setDateFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState<'all' | DateRangeFilter>('all');
   const [showDateCalendar, setShowDateCalendar] = useState(false);
 
   const filteredExpenses = expenses.filter(expense => {
@@ -32,7 +36,7 @@ export const MyExpensesScreen = ({ navigation }: any) => {
     return true;
   }).filter(expense => {
     if (dateFilter === 'all') return true;
-    return expense.date === dateFilter;
+    return isDateInRange(expense.date, dateFilter);
   });
 
   const calculateTotal = () => {
@@ -42,7 +46,7 @@ export const MyExpensesScreen = ({ navigation }: any) => {
   const sortedExpenses = [...filteredExpenses].sort((a, b) => b.date.localeCompare(a.date));
 
   const dateFilterLabel =
-    dateFilter === 'all' ? 'All Dates' : formatDisplayDate(dateFilter);
+    dateFilter === 'all' ? 'All Dates' : formatDateRangeLabel(dateFilter);
 
   const renderExpense = ({ item }: any) => (
     <TouchableOpacity 
@@ -143,8 +147,8 @@ export const MyExpensesScreen = ({ navigation }: any) => {
       <CalendarDatePicker
         visible={showDateCalendar}
         onClose={() => setShowDateCalendar(false)}
-        selectedDate={dateFilter}
-        onSelectDate={setDateFilter}
+        selectedValue={dateFilter}
+        onApply={setDateFilter}
       />
     </View>
   );
@@ -199,13 +203,19 @@ const styles = StyleSheet.create({
   dropdownIcon: { color: TEXT_DARK, fontSize: 14 },
   
   dateBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderColor: BORDER_COLOR, borderRadius: 8,
-    paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: CARD_BG
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: CARD_BG,
+    maxWidth: '48%',
   },
   calendarIcon: { fontSize: 14, marginRight: 6 },
-  dateText: { color: TEXT_DARK, fontSize: 14 },
+  dateText: { color: TEXT_DARK, fontSize: 13, flexShrink: 1 },
 
   // List
   list: { paddingBottom: 20 },
