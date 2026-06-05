@@ -15,6 +15,8 @@ import { useDispatch } from 'react-redux';
 import { CustomInput } from '../../components/CustomInput';
 import { CustomButton } from '../../components/CustomButton';
 import { loginSuccess } from '../../redux/slices/authSlice';
+import { authService, getApiErrorMessage, setAuthToken, unwrapApi } from '../../services/api';
+import { saveAuthSession } from '../../services/authStorage';
 import { colors } from '../../utils/colors';
 
 const { width, height } = Dimensions.get('window');
@@ -27,37 +29,43 @@ export const LoginScreen = () => {
   
   const dispatch = useDispatch();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please enter email and password');
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const response = await authService.login({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      const data = unwrapApi<{
+        accessToken: string;
+        refreshToken?: string;
+        user: Record<string, unknown>;
+      }>(response);
+
+      setAuthToken(data.accessToken);
+      await saveAuthSession({
+        token: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      });
+
+      dispatch(
+        loginSuccess({
+          user: data.user,
+          token: data.accessToken,
+          refreshToken: data.refreshToken,
+        }),
+      );
+    } catch (error) {
+      Alert.alert('Login failed', getApiErrorMessage(error, 'Invalid email or password'));
+    } finally {
       setLoading(false);
-      if (email.toLowerCase() === 'driver@test.com' && password === 'password') {
-        dispatch(loginSuccess({
-          user: {
-            id: 1,
-            name: 'Suresh Yadav',
-            initials: 'SY',
-            role: 'driver',
-            designation: 'Fleet Driver #FT-9921',
-            phone: '+91 98765 43210',
-            email: email.toLowerCase(),
-            vehicleModel: 'Tata Ace',
-            vehicleNo: 'HR 26 AB 1234',
-            vehicle: 'HR 26 AB 1234',
-            owner: 'Rajesh Sharma',
-            ownerPhone: '+91 99987 65432',
-          },
-          token: 'dummy-token-123',
-        }));
-      } else {
-        Alert.alert('Error', 'Invalid credentials. Use driver@test.com / password');
-      }
-    }, 1500);
+    }
   };
 
   const content = (

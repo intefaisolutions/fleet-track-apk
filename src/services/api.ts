@@ -1,47 +1,77 @@
-import axios from 'axios';
+import axios, { type AxiosResponse } from 'axios';
+import { API_BASE_URL } from '../config/api';
 
-// Replace with your actual backend IP or domain
-const BASE_URL = 'https://api.fleettrack.dummy/v1';
+export interface ApiEnvelope<T = unknown> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  error?: string;
+}
+
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
 
 export const api = axios.create({
-  baseURL: BASE_URL,
-  timeout: 10000,
+  baseURL: API_BASE_URL,
+  timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Interceptor for adding token if needed
 api.interceptors.request.use(
   (config) => {
-    // const token = await AsyncStorage.getItem('token');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    if (authToken) {
+      config.headers.Authorization = `Bearer ${authToken}`;
+    }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );
 
-// Dummy API Calls for Driver Module
+export function unwrapApi<T>(response: AxiosResponse<ApiEnvelope<T>>): T {
+  const body = response.data;
+  if (!body?.success) {
+    throw new Error(body?.message || 'Request failed');
+  }
+  return body.data as T;
+}
+
+export function getApiErrorMessage(error: unknown, fallback = 'Something went wrong'): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as ApiEnvelope | undefined;
+    const msg = data?.message;
+    if (typeof msg === 'string' && msg.trim()) return msg;
+    if (error.message) return error.message;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 export const authService = {
-  login: (data: any) => api.post('/driver/login', data),
+  login: (data: { email: string; password: string }) =>
+    api.post<ApiEnvelope>('/driver/login', data),
 };
 
 export const dashboardService = {
-  getDashboard: () => api.get('/driver/dashboard'),
+  getDashboard: () => api.get<ApiEnvelope>('/driver/dashboard'),
 };
 
 export const expenseService = {
-  getMyExpenses: () => api.get('/driver/my-expenses'),
-  addExpense: (data: any) => api.post('/driver/add-expense', data),
-  addRepairRequest: (data: any) => api.post('/driver/repair-request', data),
-  addDailyReport: (data: any) => api.post('/driver/daily-report', data),
+  getMyExpenses: () => api.get<ApiEnvelope>('/driver/my-expenses'),
+  addExpense: (data: Record<string, unknown>) =>
+    api.post<ApiEnvelope>('/driver/add-expense', data),
+  addRepairRequest: (data: Record<string, unknown>) =>
+    api.post<ApiEnvelope>('/driver/repair-request', data),
+  addDailyReport: (data: Record<string, unknown>) =>
+    api.post<ApiEnvelope>('/driver/daily-report', data),
 };
 
 export const profileService = {
-  getProfile: () => api.get('/driver/profile'),
-  updateProfile: (data: any) => api.put('/driver/update-profile', data),
+  getProfile: () => api.get<ApiEnvelope>('/driver/profile'),
+  updateProfile: (data: { fullName: string }) =>
+    api.put<ApiEnvelope>('/driver/update-profile', data),
 };

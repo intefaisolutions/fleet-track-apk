@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,20 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { logout } from '../../redux/slices/authSlice';
+import { logout, updateUser } from '../../redux/slices/authSlice';
+import { clearExpenses } from '../../redux/slices/expenseSlice';
 import { mergeDriverProfile } from '../../constants/driver';
 import { RootState } from '../../redux/store';
+import { clearAuthSession, saveAuthSession } from '../../services/authStorage';
+import { setAuthToken, profileService, getApiErrorMessage, unwrapApi } from '../../services/api';
 
 const BRAND_DARK = '#02689B';
 const BRAND_LIGHT = '#00A3E0';
@@ -27,15 +34,73 @@ export const DriverProfileScreen = () => {
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   const authUser = useSelector((state: RootState) => state.auth.user);
+  const token = useSelector((state: RootState) => state.auth.token);
+  const refreshToken = useSelector((state: RootState) => state.auth.refreshToken);
   const driver = mergeDriverProfile(authUser);
+  const [editVisible, setEditVisible] = useState(false);
+  const [editName, setEditName] = useState(driver.name);
+  const [saving, setSaving] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const response = await profileService.getProfile();
+      const profile = unwrapApi<Record<string, unknown>>(response);
+      dispatch(updateUser(profile));
+    } catch {
+      // keep cached auth user
+    }
+  }, [dispatch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile]),
+  );
 
   const hasVehicle = Boolean(driver.vehicleModel && driver.vehicleNo);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: () => dispatch(logout()) },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          setAuthToken(null);
+          await clearAuthSession();
+          dispatch(clearExpenses());
+          dispatch(logout());
+        },
+      },
     ]);
+  };
+
+  const handleSaveName = async () => {
+    const fullName = editName.trim();
+    if (fullName.length < 2) {
+      Alert.alert('Error', 'Name must be at least 2 characters');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await profileService.updateProfile({ fullName });
+      const profile = unwrapApi<Record<string, unknown>>(response);
+      dispatch(updateUser(profile));
+      if (token) {
+        await saveAuthSession({
+          token,
+          refreshToken: refreshToken ?? undefined,
+          user: { ...(authUser ?? {}), ...profile },
+        });
+      }
+      setEditVisible(false);
+      Alert.alert('Success', 'Profile updated');
+    } catch (error) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to update profile'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const showContactAdminAlert = (field: 'phone' | 'email') => {
@@ -80,6 +145,13 @@ export const DriverProfileScreen = () => {
           </View>
           <Text style={styles.name}>{driver.name}</Text>
           <Text style={styles.designation}>{driver.designation}</Text>
+          <TouchableOpacity style={styles.editNameBtn} onPress={() => {
+            setEditName(driver.name);
+            setEditVisible(true);
+          }}>
+            <Icon name="pencil-outline" size={14} color={BRAND_LIGHT} />
+            <Text style={styles.editNameText}>Edit name</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.cardsContainer}>
@@ -195,6 +267,33 @@ export const DriverProfileScreen = () => {
           <Text style={styles.logoutBtnText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={editVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit display name</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Your full name"
+              autoCapitalize="words"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setEditVisible(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSave} onPress={handleSaveName} disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.modalSaveText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -271,6 +370,17 @@ const styles = StyleSheet.create({
   largeAvatarText: { color: '#FFF', fontSize: 34, fontWeight: '700' },
   name: { fontSize: 22, fontWeight: '700', color: TEXT_DARK, marginBottom: 4 },
   designation: { fontSize: 13, color: TEXT_MUTED },
+  editNameBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#E0F2FE',
+  },
+  editNameText: { color: BRAND_LIGHT, fontSize: 13, fontWeight: '600' },
 
   cardsContainer: { paddingHorizontal: 16, paddingTop: 20 },
   contactHint: {
@@ -437,4 +547,39 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   logoutBtnText: { color: '#EF4444', fontWeight: '600', fontSize: 15 },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '600', color: TEXT_DARK, marginBottom: 12 },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: TEXT_DARK,
+    marginBottom: 16,
+  },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
+  modalCancel: { paddingHorizontal: 14, paddingVertical: 10 },
+  modalCancelText: { color: TEXT_MUTED, fontWeight: '600' },
+  modalSave: {
+    backgroundColor: BRAND_LIGHT,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  modalSaveText: { color: '#FFF', fontWeight: '700' },
 });

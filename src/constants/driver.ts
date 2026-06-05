@@ -14,7 +14,10 @@ export type DriverProfile = typeof DEFAULT_DRIVER;
 
 export const mergeDriverProfile = (user: Record<string, unknown> | null | undefined): DriverProfile => ({
   initials: (user?.initials as string) || DEFAULT_DRIVER.initials,
-  name: (user?.name as string) || DEFAULT_DRIVER.name,
+  name:
+    (user?.name as string) ||
+    (user?.fullName as string) ||
+    DEFAULT_DRIVER.name,
   designation: (user?.designation as string) || DEFAULT_DRIVER.designation,
   phone: (user?.phone as string) || DEFAULT_DRIVER.phone,
   email: (user?.email as string) || DEFAULT_DRIVER.email,

@@ -12,13 +12,27 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { addExpense } from '../../redux/slices/expenseSlice';
 import { CustomInput } from '../../components/CustomInput';
 import { formatCurrency, formatDisplayDate, getLocalIsoDate } from '../../utils/dateUtils';
+import {
+  expenseService,
+  getApiErrorMessage,
+  unwrapApi,
+} from '../../services/api';
+import { useDriverExpenses } from '../../hooks/useDriverExpenses';
+import {
+  buildDailyReportPayload,
+  buildFuelExpensePayload,
+  buildRepairRequestPayload,
+  buildTollExpensePayload,
+} from '../../utils/expensePayloads';
+import { mapExpenseToUi } from '../../utils/expenseMapper';
+import { addExpense } from '../../redux/slices/expenseSlice';
 
 const MONO = {
   active: '#1DA1F2',
@@ -47,6 +61,8 @@ const TOLL_PAYMENT_OPTIONS = ['FASTag', 'Cash', 'Card'];
 export const AddExpenseMainScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
+  const { refreshExpenses } = useDriverExpenses();
+  const [submitting, setSubmitting] = useState(false);
   const [activeCategory, setActiveCategory] = useState<ExpenseCategory>('fuel');
   const [paymentPickerVisible, setPaymentPickerVisible] = useState(false);
   const [paymentPickerTarget, setPaymentPickerTarget] = useState<'fuel' | 'toll'>('fuel');
@@ -89,74 +105,90 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
     setPaymentPickerVisible(true);
   };
 
-  const handleFuelSubmit = () => {
+  const handleFuelSubmit = async () => {
     if (!odometer || !litres || !pricePerLitre || !station) {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
 
-    dispatch(
-      addExpense({
-        id: Date.now().toString(),
-        title: `${station} (Fuel)`,
+    setSubmitting(true);
+    try {
+      const payload = buildFuelExpensePayload({
         date,
-        amount: total,
-        vehicle: 'HR26AB1234',
-        icon: '⛽',
-        iconBg: '#E0F2FE',
-      }),
-    );
-
-    Alert.alert('Success', 'Fuel expense added successfully');
-    resetFuelForm();
+        odometer,
+        litres,
+        pricePerLitre,
+        total,
+        station,
+        paymentMethod: fuelPaymentMethod,
+      });
+      const response = await expenseService.addExpense(payload);
+      const created = unwrapApi<Record<string, unknown>>(response);
+      dispatch(addExpense(mapExpenseToUi(created)));
+      await refreshExpenses();
+      Alert.alert('Success', 'Fuel expense added successfully');
+      resetFuelForm();
+    } catch (error) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to save fuel expense'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleTollSubmit = () => {
+  const handleTollSubmit = async () => {
     if (!tollName || !tollAmount) {
       Alert.alert('Error', 'Please fill required fields');
       return;
     }
 
-    dispatch(
-      addExpense({
-        id: Date.now().toString(),
-        title: `${tollName} (Toll)`,
-        date: getLocalIsoDate(),
+    setSubmitting(true);
+    try {
+      const payload = buildTollExpensePayload({
+        tollName,
         amount: tollAmount,
-        vehicle: 'HR26AB1234',
-        icon: '🛣️',
-        iconBg: '#F3F4F6',
-      }),
-    );
-
-    Alert.alert('Success', 'Toll expense added');
-    resetTollForm();
+        paymentType: tollPaymentType,
+        tripPurpose,
+      });
+      const response = await expenseService.addExpense(payload);
+      const created = unwrapApi<Record<string, unknown>>(response);
+      dispatch(addExpense(mapExpenseToUi(created)));
+      await refreshExpenses();
+      Alert.alert('Success', 'Toll expense added');
+      resetTollForm();
+    } catch (error) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to save toll expense'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleRepairSubmit = () => {
+  const handleRepairSubmit = async () => {
     if (!repairTitle || !repairDescription) {
       Alert.alert('Error', 'Please provide title and description');
       return;
     }
 
-    dispatch(
-      addExpense({
-        id: Date.now().toString(),
+    setSubmitting(true);
+    try {
+      const payload = buildRepairRequestPayload({
         title: repairTitle,
-        date: getLocalIsoDate(),
-        amount: '0',
-        vehicle: 'HR26AB1234',
-        icon: '🔧',
-        iconBg: '#F3F4F6',
-      }),
-    );
-
-    Alert.alert('Success', 'Repair request submitted to owner');
-    setRepairTitle('');
-    setRepairDescription('');
+        description: repairDescription,
+      });
+      const response = await expenseService.addRepairRequest(payload);
+      const created = unwrapApi<Record<string, unknown>>(response);
+      dispatch(addExpense(mapExpenseToUi(created)));
+      await refreshExpenses();
+      Alert.alert('Success', 'Repair request submitted to owner');
+      setRepairTitle('');
+      setRepairDescription('');
+    } catch (error) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to submit repair request'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDailySubmit = () => {
+  const handleDailySubmit = async () => {
     if (!totalKm || !destination || !dailyExpense) {
       Alert.alert('Error', 'Please fill total KM, destination and day expense');
       return;
@@ -168,23 +200,28 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
       return;
     }
 
-    dispatch(
-      addExpense({
-        id: Date.now().toString(),
-        title: `Daily Report: ${destination} (${totalKm} km)`,
-        date: getLocalIsoDate(),
-        amount: expenseAmount.toFixed(2),
-        vehicle: 'HR26AB1234',
-        icon: '📝',
-        iconBg: '#F3F4F6',
-      }),
-    );
-
-    Alert.alert('Success', 'Daily report submitted');
-    setTotalKm('');
-    setDestination('');
-    setDailyExpense('');
-    setDailyNotes('');
+    setSubmitting(true);
+    try {
+      const payload = buildDailyReportPayload({
+        totalKm,
+        destination,
+        dailyExpense,
+        notes: dailyNotes,
+      });
+      const response = await expenseService.addDailyReport(payload);
+      const created = unwrapApi<Record<string, unknown>>(response);
+      dispatch(addExpense(mapExpenseToUi(created)));
+      await refreshExpenses();
+      Alert.alert('Success', 'Daily report submitted');
+      setTotalKm('');
+      setDestination('');
+      setDailyExpense('');
+      setDailyNotes('');
+    } catch (error) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to submit daily report'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetFuelForm = () => {
@@ -202,6 +239,7 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
   };
 
   const handleSave = () => {
+    if (submitting) return;
     switch (activeCategory) {
       case 'fuel':
         handleFuelSubmit();
@@ -516,9 +554,20 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.9}>
-          <Icon name="content-save-outline" size={18} color={MONO.surface} />
-          <Text style={styles.saveBtnText}>{saveLabel}</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, submitting && styles.saveBtnDisabled]}
+          onPress={handleSave}
+          activeOpacity={0.9}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color={MONO.surface} />
+          ) : (
+            <>
+              <Icon name="content-save-outline" size={18} color={MONO.surface} />
+              <Text style={styles.saveBtnText}>{saveLabel}</Text>
+            </>
+          )}
         </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -706,6 +755,7 @@ const styles = StyleSheet.create({
     height: 46,
     gap: 8,
   },
+  saveBtnDisabled: { opacity: 0.7 },
   saveBtnText: { color: MONO.surface, fontSize: 15, fontWeight: '600' },
   serviceBox: {
     backgroundColor: MONO.surface,

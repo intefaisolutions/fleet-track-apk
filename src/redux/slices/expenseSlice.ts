@@ -8,6 +8,7 @@ export interface Expense {
   vehicle: string;
   icon: string;
   iconBg: string;
+  category?: string;
 }
 
 interface ExpenseState {
@@ -15,41 +16,16 @@ interface ExpenseState {
 }
 
 const initialState: ExpenseState = {
-  expenses: [
-    { 
-      id: '1', 
-      title: 'Indian Oil, NH-48', 
-      date: '2026-05-25', 
-      amount: '3450', 
-      vehicle: 'HR26AB1234', 
-      icon: '⛽', 
-      iconBg: '#E0F2FE'
-    },
-    { 
-      id: '2', 
-      title: 'Brake Pad Replacement', 
-      date: '2026-05-20', 
-      amount: '7200', 
-      vehicle: 'HR26AB1234', 
-      icon: '🔧', 
-      iconBg: '#F3F4F6'
-    },
-    { 
-      id: '3', 
-      title: 'Toll - Delhi-Jaipur Exp', 
-      date: '2026-05-15', 
-      amount: '850', 
-      vehicle: 'HR26AB1234', 
-      icon: '🛣️', 
-      iconBg: '#F3F4F6' 
-    },
-  ],
+  expenses: [],
 };
 
 const expenseSlice = createSlice({
   name: 'expenses',
   initialState,
   reducers: {
+    setExpenses: (state, action: PayloadAction<Expense[]>) => {
+      state.expenses = action.payload;
+    },
     addExpense: (state, action: PayloadAction<Expense>) => {
       state.expenses.unshift(action.payload);
     },
@@ -59,8 +35,11 @@ const expenseSlice = createSlice({
         state.expenses[index] = action.payload;
       }
     },
+    clearExpenses: (state) => {
+      state.expenses = [];
+    },
   },
 });
 
-export const { addExpense, updateExpense } = expenseSlice.actions;
+export const { setExpenses, addExpense, updateExpense, clearExpenses } = expenseSlice.actions;
 export default expenseSlice.reducer;

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, StatusBar, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, StatusBar, Alert, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -10,6 +11,7 @@ import {
   type DateRangeFilter,
 } from '../../utils/dateUtils';
 import { CalendarDatePicker } from '../../components/CalendarDatePicker';
+import { useDriverExpenses } from '../../hooks/useDriverExpenses';
 
 const BRAND_DARK = '#02689B';
 const BRAND_LIGHT = '#00A3E0'; // or bright blue like the screenshot
@@ -22,17 +24,25 @@ const BORDER_COLOR = '#E5E7EB';
 export const MyExpensesScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const expenses = useSelector((state: RootState) => state.expenses.expenses);
+  const { loading, error, refreshExpenses } = useDriverExpenses();
   const [filter, setFilter] = useState('All Categories');
   const [showDropdown, setShowDropdown] = useState(false);
   const [dateFilter, setDateFilter] = useState<'all' | DateRangeFilter>('all');
   const [showDateCalendar, setShowDateCalendar] = useState(false);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshExpenses();
+    }, [refreshExpenses]),
+  );
+
   const filteredExpenses = expenses.filter(expense => {
     if (filter === 'All Categories') return true;
-    if (filter === 'Fuel') return expense.title.includes('Fuel');
-    if (filter === 'Toll') return expense.title.includes('Toll');
-    if (filter === 'Repair') return expense.icon === '🔧' || expense.title.includes('Repair');
-    if (filter === 'Daily Report') return expense.title.includes('Daily Report');
+    const cat = (expense.category ?? '').toUpperCase();
+    if (filter === 'Fuel') return cat === 'FUEL' || expense.title.includes('Fuel');
+    if (filter === 'Toll') return cat === 'TOLL' || expense.title.includes('Toll');
+    if (filter === 'Repair') return cat === 'REPAIR' || expense.icon === '🔧' || expense.title.includes('Repair');
+    if (filter === 'Daily Report') return cat === 'OTHER' || expense.title.includes('Daily Report');
     return true;
   }).filter(expense => {
     if (dateFilter === 'all') return true;
@@ -118,12 +128,30 @@ export const MyExpensesScreen = ({ navigation }: any) => {
         </View>
 
         {/* List */}
+        {loading && expenses.length === 0 ? (
+          <View style={styles.loaderBox}>
+            <ActivityIndicator size="large" color={BRAND_DARK} />
+          </View>
+        ) : null}
+
+        {error ? (
+          <TouchableOpacity style={styles.errorBox} onPress={refreshExpenses}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.retryText}>Tap to retry</Text>
+          </TouchableOpacity>
+        ) : null}
+
         <FlatList
           data={sortedExpenses}
           keyExtractor={item => item.id}
           renderItem={renderExpense}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            !loading ? (
+              <Text style={styles.emptyText}>No expenses yet. Add your first expense.</Text>
+            ) : null
+          }
         />
       </View>
 
@@ -252,5 +280,15 @@ const styles = StyleSheet.create({
   dropdownMenu: { backgroundColor: CARD_BG, width: '80%', borderRadius: 12, padding: 8, elevation: 5 },
   dropdownItem: { paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER_COLOR },
   dropdownItemText: { fontSize: 15, color: TEXT_DARK },
-  dropdownItemTextActive: { color: BRAND_DARK, fontWeight: 'bold' }
+  dropdownItemTextActive: { color: BRAND_DARK, fontWeight: 'bold' },
+  loaderBox: { paddingVertical: 40, alignItems: 'center' },
+  errorBox: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  errorText: { color: '#B91C1C', fontSize: 13 },
+  retryText: { color: BRAND_DARK, fontWeight: '600', marginTop: 4, fontSize: 12 },
+  emptyText: { textAlign: 'center', color: TEXT_MUTED, paddingVertical: 32, fontSize: 14 },
 });
