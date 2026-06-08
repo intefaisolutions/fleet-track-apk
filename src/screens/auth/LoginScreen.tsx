@@ -21,7 +21,7 @@ import { colors } from '../../utils/colors';
 
 const { width, height } = Dimensions.get('window');
 
-export const LoginScreen = () => {
+export const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -120,7 +120,10 @@ export const LoginScreen = () => {
           }
         />
 
-        <Text style={styles.forgotPassword} onPress={() => Alert.alert('Info', 'Forgot password feature coming soon')}>
+        <Text
+          style={styles.forgotPassword}
+          onPress={() => navigation.navigate('ForgotPassword')}
+        >
           Forgot Password?
         </Text>
 

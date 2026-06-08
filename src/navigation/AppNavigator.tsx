@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector } from 'react-redux';
 
 import { LoginScreen } from '../screens/auth/LoginScreen';
+import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
 import { BottomTabNavigator } from './BottomTabNavigator';
 import { FuelExpenseScreen } from '../screens/expenses/FuelExpenseScreen';
 import { TollExpenseScreen } from '../screens/expenses/TollExpenseScreen';
@@ -28,11 +29,18 @@ export const AppNavigator = () => {
         }}
       >
         {!isAuthenticated ? (
-          <Stack.Screen 
-            name="Login" 
-            component={LoginScreen} 
-            options={{ headerShown: false }}
-          />
+          <>
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ForgotPassword"
+              component={ForgotPasswordScreen}
+              options={{ headerShown: false }}
+            />
+          </>
         ) : (
           <>
             <Stack.Screen 

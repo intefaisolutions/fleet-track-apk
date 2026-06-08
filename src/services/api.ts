@@ -54,6 +54,12 @@ export function getApiErrorMessage(error: unknown, fallback = 'Something went wr
 export const authService = {
   login: (data: { email: string; password: string }) =>
     api.post<ApiEnvelope>('/driver/login', data),
+  forgotPassword: (data: { email: string }) =>
+    api.post<ApiEnvelope>('/auth/forgot-password', data),
+  verifyResetOtp: (data: { email: string; otp: string }) =>
+    api.post<ApiEnvelope>('/auth/verify-reset-otp', data),
+  resetPassword: (data: { email: string; token: string; newPassword: string }) =>
+    api.post<ApiEnvelope>('/auth/reset-password', data),
 };
 
 export const dashboardService = {
@@ -62,6 +68,10 @@ export const dashboardService = {
 
 export const expenseService = {
   getMyExpenses: () => api.get<ApiEnvelope>('/driver/my-expenses'),
+  updateExpense: (
+    id: string,
+    data: { amount: number; description: string; expenseDate: string },
+  ) => api.patch<ApiEnvelope>(`/driver/expenses/${id}`, data),
   addExpense: (data: Record<string, unknown>) =>
     api.post<ApiEnvelope>('/driver/add-expense', data),
   addRepairRequest: (data: Record<string, unknown>) =>

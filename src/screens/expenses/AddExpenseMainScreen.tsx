@@ -18,17 +18,19 @@ import { useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { CustomInput } from '../../components/CustomInput';
+import { ReceiptUploadButton } from '../../components/ReceiptUploadButton';
 import { formatCurrency, formatDisplayDate, getLocalIsoDate } from '../../utils/dateUtils';
 import {
   expenseService,
   getApiErrorMessage,
   unwrapApi,
 } from '../../services/api';
-import { useDriverExpenses } from '../../hooks/useDriverExpenses';
 import {
   buildDailyReportPayload,
   buildFuelExpensePayload,
+  buildOtherExpensePayload,
   buildRepairRequestPayload,
+  buildServiceExpensePayload,
   buildTollExpensePayload,
 } from '../../utils/expensePayloads';
 import { mapExpenseToUi } from '../../utils/expenseMapper';
@@ -45,14 +47,15 @@ const MONO = {
   tint: '#E8F4FC',
 };
 
-type ExpenseCategory = 'fuel' | 'toll' | 'service' | 'repair' | 'daily';
+type ExpenseCategory = 'fuel' | 'toll' | 'service' | 'repair' | 'daily' | 'other';
 
 const CATEGORIES: { id: ExpenseCategory; label: string; icon: string }[] = [
   { id: 'fuel', label: 'Fuel', icon: 'gas-station' },
   { id: 'toll', label: 'Toll', icon: 'highway' },
-  { id: 'service', label: 'Service Alert', icon: 'bell-alert-outline' },
+  { id: 'service', label: 'Service', icon: 'wrench-outline' },
   { id: 'repair', label: 'Repair Req', icon: 'wrench' },
   { id: 'daily', label: 'Daily Report', icon: 'clipboard-text-outline' },
+  { id: 'other', label: 'Other', icon: 'cash-multiple' },
 ];
 
 const FUEL_PAYMENT_OPTIONS = ['Cash', 'Card', 'UPI', 'Fleet Card'];
@@ -61,7 +64,6 @@ const TOLL_PAYMENT_OPTIONS = ['FASTag', 'Cash', 'Card'];
 export const AddExpenseMainScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
-  const { refreshExpenses } = useDriverExpenses();
   const [submitting, setSubmitting] = useState(false);
   const [activeCategory, setActiveCategory] = useState<ExpenseCategory>('fuel');
   const [paymentPickerVisible, setPaymentPickerVisible] = useState(false);
@@ -87,6 +89,22 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
   const [destination, setDestination] = useState('');
   const [dailyExpense, setDailyExpense] = useState('');
   const [dailyNotes, setDailyNotes] = useState('');
+
+  const [serviceDate, setServiceDate] = useState(getLocalIsoDate());
+  const [serviceType, setServiceType] = useState('');
+  const [serviceCenter, setServiceCenter] = useState('');
+  const [serviceAmount, setServiceAmount] = useState('');
+  const [serviceOdometer, setServiceOdometer] = useState('');
+  const [serviceNotes, setServiceNotes] = useState('');
+
+  const [otherCost, setOtherCost] = useState('');
+  const [otherDescription, setOtherDescription] = useState('');
+  const [receiptUrl, setReceiptUrl] = useState('');
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
+  useEffect(() => {
+    setReceiptUrl('');
+  }, [activeCategory]);
 
   useEffect(() => {
     if (litres && pricePerLitre) {
@@ -121,11 +139,11 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
         total,
         station,
         paymentMethod: fuelPaymentMethod,
+        receiptUrl: receiptUrl || undefined,
       });
       const response = await expenseService.addExpense(payload);
       const created = unwrapApi<Record<string, unknown>>(response);
       dispatch(addExpense(mapExpenseToUi(created)));
-      await refreshExpenses();
       Alert.alert('Success', 'Fuel expense added successfully');
       resetFuelForm();
     } catch (error) {
@@ -148,11 +166,11 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
         amount: tollAmount,
         paymentType: tollPaymentType,
         tripPurpose,
+        receiptUrl: receiptUrl || undefined,
       });
       const response = await expenseService.addExpense(payload);
       const created = unwrapApi<Record<string, unknown>>(response);
       dispatch(addExpense(mapExpenseToUi(created)));
-      await refreshExpenses();
       Alert.alert('Success', 'Toll expense added');
       resetTollForm();
     } catch (error) {
@@ -173,16 +191,90 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
       const payload = buildRepairRequestPayload({
         title: repairTitle,
         description: repairDescription,
+        receiptUrl: receiptUrl || undefined,
       });
       const response = await expenseService.addRepairRequest(payload);
       const created = unwrapApi<Record<string, unknown>>(response);
       dispatch(addExpense(mapExpenseToUi(created)));
-      await refreshExpenses();
       Alert.alert('Success', 'Repair request submitted to owner');
       setRepairTitle('');
       setRepairDescription('');
+      clearReceipt();
     } catch (error) {
       Alert.alert('Error', getApiErrorMessage(error, 'Failed to submit repair request'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleServiceSubmit = async () => {
+    if (!serviceType.trim() || !serviceCenter.trim() || !serviceAmount.trim()) {
+      Alert.alert('Error', 'Please fill service type, center and amount');
+      return;
+    }
+
+    const amount = parseFloat(serviceAmount.replace(/,/g, ''));
+    if (Number.isNaN(amount) || amount < 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = buildServiceExpensePayload({
+        date: serviceDate,
+        serviceType,
+        serviceCenter,
+        amount: serviceAmount,
+        odometer: serviceOdometer,
+        notes: serviceNotes,
+        receiptUrl: receiptUrl || undefined,
+      });
+      const response = await expenseService.addExpense(payload);
+      const created = unwrapApi<Record<string, unknown>>(response);
+      dispatch(addExpense(mapExpenseToUi(created)));
+      Alert.alert('Success', 'Service record added successfully');
+      setServiceType('');
+      setServiceCenter('');
+      setServiceAmount('');
+      setServiceOdometer('');
+      setServiceNotes('');
+      clearReceipt();
+    } catch (error) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to save service record'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOtherSubmit = async () => {
+    if (!otherCost.trim() || !otherDescription.trim()) {
+      Alert.alert('Error', 'Please enter cost and description');
+      return;
+    }
+
+    const amount = parseFloat(otherCost.replace(/,/g, ''));
+    if (Number.isNaN(amount) || amount < 0) {
+      Alert.alert('Error', 'Please enter a valid cost');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = buildOtherExpensePayload({
+        cost: otherCost,
+        description: otherDescription,
+        receiptUrl: receiptUrl || undefined,
+      });
+      const response = await expenseService.addExpense(payload);
+      const created = unwrapApi<Record<string, unknown>>(response);
+      dispatch(addExpense(mapExpenseToUi(created)));
+      Alert.alert('Success', 'Other expense added successfully');
+      setOtherCost('');
+      setOtherDescription('');
+      clearReceipt();
+    } catch (error) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to save other expense'));
     } finally {
       setSubmitting(false);
     }
@@ -211,12 +303,12 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
       const response = await expenseService.addDailyReport(payload);
       const created = unwrapApi<Record<string, unknown>>(response);
       dispatch(addExpense(mapExpenseToUi(created)));
-      await refreshExpenses();
       Alert.alert('Success', 'Daily report submitted');
       setTotalKm('');
       setDestination('');
       setDailyExpense('');
       setDailyNotes('');
+      clearReceipt();
     } catch (error) {
       Alert.alert('Error', getApiErrorMessage(error, 'Failed to submit daily report'));
     } finally {
@@ -230,13 +322,17 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
     setPricePerLitre('');
     setStation('');
     setTotal('0');
+    setReceiptUrl('');
   };
 
   const resetTollForm = () => {
     setTollName('');
     setTollAmount('');
     setTripPurpose('');
+    setReceiptUrl('');
   };
+
+  const clearReceipt = () => setReceiptUrl('');
 
   const handleSave = () => {
     if (submitting) return;
@@ -254,7 +350,10 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
         handleDailySubmit();
         break;
       case 'service':
-        Alert.alert('Service Alert', 'Service reminders are managed by your fleet owner.');
+        handleServiceSubmit();
+        break;
+      case 'other':
+        handleOtherSubmit();
         break;
       default:
         break;
@@ -455,14 +554,79 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
     </>
   );
 
-  const renderServiceAlert = () => (
-    <View style={styles.serviceBox}>
-      <Icon name="bell-alert-outline" size={32} color={MONO.active} />
-      <Text style={styles.serviceTitle}>Upcoming Service</Text>
-      <Text style={styles.serviceText}>
-        Your vehicle service is due soon. Contact your fleet owner for scheduling.
-      </Text>
-    </View>
+  const renderOtherForm = () => (
+    <>
+      <CustomInput
+        label="Cost (₹)"
+        value={otherCost}
+        onChangeText={setOtherCost}
+        keyboardType="numeric"
+        placeholder="e.g. 500"
+        {...inputProps}
+      />
+      <Text style={styles.fieldLabel}>Description</Text>
+      <TextInput
+        style={styles.textArea}
+        multiline
+        numberOfLines={4}
+        value={otherDescription}
+        onChangeText={setOtherDescription}
+        placeholder="What was this expense for?"
+        placeholderTextColor={MONO.muted}
+      />
+    </>
+  );
+
+  const renderServiceForm = () => (
+    <>
+      <CustomInput
+        label="Date"
+        value={formatDisplayDate(serviceDate)}
+        editable={false}
+        {...inputProps}
+        rightIcon={<Icon name="calendar-month-outline" size={18} color={MONO.muted} />}
+      />
+      <CustomInput
+        label="Service Type"
+        value={serviceType}
+        onChangeText={setServiceType}
+        placeholder="e.g. Oil Change, General Service"
+        {...inputProps}
+      />
+      <CustomInput
+        label="Service Center / Garage"
+        value={serviceCenter}
+        onChangeText={setServiceCenter}
+        placeholder="e.g. Tata Motors Service"
+        {...inputProps}
+      />
+      <CustomInput
+        label="Amount (₹)"
+        value={serviceAmount}
+        onChangeText={setServiceAmount}
+        keyboardType="numeric"
+        placeholder="e.g. 3500"
+        {...inputProps}
+      />
+      <CustomInput
+        label="Odometer (km) — Optional"
+        value={serviceOdometer}
+        onChangeText={setServiceOdometer}
+        keyboardType="numeric"
+        placeholder="e.g. 45230"
+        {...inputProps}
+      />
+      <Text style={styles.fieldLabel}>Notes (Optional)</Text>
+      <TextInput
+        style={styles.textArea}
+        multiline
+        numberOfLines={3}
+        value={serviceNotes}
+        onChangeText={setServiceNotes}
+        placeholder="Parts replaced, next service due, etc."
+        placeholderTextColor={MONO.muted}
+      />
+    </>
   );
 
   const renderForm = () => {
@@ -476,7 +640,9 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
       case 'daily':
         return renderDailyForm();
       case 'service':
-        return renderServiceAlert();
+        return renderServiceForm();
+      case 'other':
+        return renderOtherForm();
       default:
         return null;
     }
@@ -487,7 +653,9 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
       ? 'Submit Request'
       : activeCategory === 'daily'
         ? 'Submit Report'
-        : 'Save Expense';
+        : activeCategory === 'service'
+          ? 'Save Service'
+          : 'Save Expense';
 
   return (
     <View style={styles.container}>
@@ -547,12 +715,20 @@ export const AddExpenseMainScreen = ({ navigation }: any) => {
         {renderIllustration()}
         {renderForm()}
 
-        {activeCategory !== 'service' && (
-          <TouchableOpacity style={styles.uploadBtn} activeOpacity={0.85}>
-            <Icon name="camera-plus-outline" size={22} color={MONO.active} />
-            <Text style={styles.uploadText}>Upload Receipt</Text>
-          </TouchableOpacity>
-        )}
+        {activeCategory !== 'daily' ? (
+          <ReceiptUploadButton
+            receiptUrl={receiptUrl}
+            onReceiptUrlChange={setReceiptUrl}
+            uploading={uploadingReceipt}
+            onUploadingChange={setUploadingReceipt}
+            folder="receipts"
+            label={
+              activeCategory === 'repair' ? 'Upload Issue Image' : 'Upload Receipt'
+            }
+            activeColor={MONO.active}
+            style={styles.uploadWrap}
+          />
+        ) : null}
 
         <TouchableOpacity
           style={[styles.saveBtn, submitting && styles.saveBtnDisabled]}
@@ -733,19 +909,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: MONO.surface,
   },
-  uploadBtn: {
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: MONO.active,
-    borderRadius: 8,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    backgroundColor: MONO.tint,
-    gap: 6,
-  },
-  uploadText: { color: MONO.active, fontWeight: '500', fontSize: 13 },
+  uploadWrap: { marginBottom: 14 },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',

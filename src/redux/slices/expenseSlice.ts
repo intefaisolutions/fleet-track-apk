@@ -9,6 +9,7 @@ export interface Expense {
   icon: string;
   iconBg: string;
   category?: string;
+  receiptUrl?: string;
 }
 
 interface ExpenseState {

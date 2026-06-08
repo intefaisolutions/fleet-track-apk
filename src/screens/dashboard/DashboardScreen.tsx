@@ -16,7 +16,9 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { RootState } from '../../redux/store';
 import { mergeDriverProfile } from '../../constants/driver';
+import { useDriverExpenses } from '../../hooks/useDriverExpenses';
 import { dashboardService, getApiErrorMessage, unwrapApi } from '../../services/api';
+import { computeExpenseTotals, parseAmountValue } from '../../utils/dateUtils';
 
 const BRAND_DARK = '#02689B';
 const BG_COLOR = '#F9FAFB';
@@ -44,6 +46,8 @@ interface DashboardData {
 export const DashboardScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const authUser = useSelector((state: RootState) => state.auth.user);
+  const reduxExpenses = useSelector((state: RootState) => state.expenses.expenses);
+  const { refreshExpenses } = useDriverExpenses();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +69,8 @@ export const DashboardScreen = ({ navigation }: any) => {
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
-    }, [loadDashboard]),
+      refreshExpenses();
+    }, [loadDashboard, refreshExpenses]),
   );
 
   const profileUser = dashboard?.profile ?? authUser;
@@ -73,6 +78,12 @@ export const DashboardScreen = ({ navigation }: any) => {
 
   const stats = dashboard?.stats;
   const vehicle = dashboard?.vehicle;
+
+  const apiToday = parseAmountValue(stats?.todayExpenses);
+  const apiMonth = parseAmountValue(stats?.monthExpenses);
+  const localTotals = computeExpenseTotals(reduxExpenses);
+  const todayTotal = Math.max(apiToday, localTotals.today);
+  const monthTotal = Math.max(apiMonth, localTotals.month);
 
   const driverData = {
     name: driver.name,
@@ -83,8 +94,8 @@ export const DashboardScreen = ({ navigation }: any) => {
     owner: vehicle?.ownerName ?? driver.owner,
     lastService: stats?.lastServiceDate ?? '—',
     odometer: stats?.odometerLabel ?? '—',
-    today: (stats?.todayExpenses ?? 0).toLocaleString('en-IN'),
-    month: (stats?.monthExpenses ?? 0).toLocaleString('en-IN'),
+    today: todayTotal.toLocaleString('en-IN'),
+    month: monthTotal.toLocaleString('en-IN'),
   };
 
   if (loading && !dashboard) {

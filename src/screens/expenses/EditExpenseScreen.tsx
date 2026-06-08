@@ -8,6 +8,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +16,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { updateExpense } from '../../redux/slices/expenseSlice';
 import { CustomInput } from '../../components/CustomInput';
 import { RootState } from '../../redux/store';
+import { expenseService, getApiErrorMessage, unwrapApi } from '../../services/api';
+import { mapExpenseToUi } from '../../utils/expenseMapper';
 import { formatDisplayDate } from '../../utils/dateUtils';
 
 const BRAND = '#02689B';
@@ -36,6 +39,7 @@ export const EditExpenseScreen = ({ route, navigation }: any) => {
   const [title, setTitle] = useState(expense?.title ?? '');
   const [date, setDate] = useState(expense?.date ?? '');
   const [amount, setAmount] = useState(expense?.amount ?? '');
+  const [saving, setSaving] = useState(false);
 
   if (!expense) {
     return (
@@ -48,7 +52,7 @@ export const EditExpenseScreen = ({ route, navigation }: any) => {
     );
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim() || !date.trim() || !amount.trim()) {
       Alert.alert('Error', 'Please fill all fields');
       return;
@@ -60,18 +64,25 @@ export const EditExpenseScreen = ({ route, navigation }: any) => {
       return;
     }
 
-    dispatch(
-      updateExpense({
-        ...expense,
-        title: title.trim(),
-        date: date.trim(),
-        amount: parsed.toFixed(2),
-      }),
-    );
+    const expenseDate = date.trim().slice(0, 10);
 
-    Alert.alert('Success', 'Expense updated successfully', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    setSaving(true);
+    try {
+      const response = await expenseService.updateExpense(expenseId, {
+        amount: parsed,
+        description: title.trim(),
+        expenseDate,
+      });
+      const updated = unwrapApi<Record<string, unknown>>(response);
+      dispatch(updateExpense(mapExpenseToUi(updated)));
+      Alert.alert('Success', 'Expense updated successfully', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (error) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to update expense'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputProps = {
@@ -132,9 +143,20 @@ export const EditExpenseScreen = ({ route, navigation }: any) => {
             <Text style={styles.readOnlyValue}>{expense.vehicle}</Text>
           </View>
 
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.9}>
-            <Icon name="content-save-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.saveBtnText}>Save Changes</Text>
+          <TouchableOpacity
+            style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+            onPress={handleSave}
+            activeOpacity={0.9}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Icon name="content-save-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.saveBtnText}>Save Changes</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.cancelBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
@@ -211,6 +233,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 10,
   },
+  saveBtnDisabled: { opacity: 0.7 },
   saveBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
   cancelBtn: {
     alignItems: 'center',

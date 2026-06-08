@@ -21,6 +21,12 @@ const TEXT_DARK = '#111827';
 const TEXT_MUTED = '#6B7280';
 const BORDER_COLOR = '#E5E7EB';
 
+function parseAmount(value: unknown): number {
+  if (typeof value === 'number') return Number.isNaN(value) ? 0 : value;
+  if (typeof value === 'string') return parseFloat(value.replace(/,/g, '')) || 0;
+  return 0;
+}
+
 export const MyExpensesScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const expenses = useSelector((state: RootState) => state.expenses.expenses);
@@ -41,8 +47,10 @@ export const MyExpensesScreen = ({ navigation }: any) => {
     const cat = (expense.category ?? '').toUpperCase();
     if (filter === 'Fuel') return cat === 'FUEL' || expense.title.includes('Fuel');
     if (filter === 'Toll') return cat === 'TOLL' || expense.title.includes('Toll');
+    if (filter === 'Service') return cat === 'SERVICE' || expense.title.includes('Service');
     if (filter === 'Repair') return cat === 'REPAIR' || expense.icon === '🔧' || expense.title.includes('Repair');
-    if (filter === 'Daily Report') return cat === 'OTHER' || expense.title.includes('Daily Report');
+    if (filter === 'Other') return cat === 'OTHER' && !expense.title.includes('Daily Report');
+    if (filter === 'Daily Report') return expense.title.includes('Daily Report');
     return true;
   }).filter(expense => {
     if (dateFilter === 'all') return true;
@@ -50,10 +58,14 @@ export const MyExpensesScreen = ({ navigation }: any) => {
   });
 
   const calculateTotal = () => {
-    return filteredExpenses.reduce((sum, item) => sum + parseFloat((item.amount || '0').replace(/,/g, '')), 0).toLocaleString();
+    return filteredExpenses
+      .reduce((sum, item) => sum + parseAmount(item.amount), 0)
+      .toLocaleString('en-IN');
   };
 
-  const sortedExpenses = [...filteredExpenses].sort((a, b) => b.date.localeCompare(a.date));
+  const sortedExpenses = [...filteredExpenses].sort((a, b) =>
+    String(b.date ?? '').localeCompare(String(a.date ?? '')),
+  );
 
   const dateFilterLabel =
     dateFilter === 'all' ? 'All Dates' : formatDateRangeLabel(dateFilter);
@@ -80,7 +92,7 @@ export const MyExpensesScreen = ({ navigation }: any) => {
 
         {/* Right Amount */}
         <View style={styles.amountContainer}>
-          <Text style={styles.amount}>₹{parseFloat((item.amount || '0').replace(/,/g, '')).toLocaleString()}</Text>
+          <Text style={styles.amount}>₹{parseAmount(item.amount).toLocaleString('en-IN')}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -159,7 +171,7 @@ export const MyExpensesScreen = ({ navigation }: any) => {
       <Modal visible={showDropdown} transparent animationType="fade">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowDropdown(false)}>
           <View style={styles.dropdownMenu}>
-            {['All Categories', 'Fuel', 'Toll', 'Repair', 'Daily Report'].map(cat => (
+            {['All Categories', 'Fuel', 'Toll', 'Service', 'Repair', 'Daily Report', 'Other'].map(cat => (
               <TouchableOpacity 
                 key={cat} 
                 style={styles.dropdownItem} 

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -77,10 +78,18 @@ export const ExpenseDetailScreen = ({ route, navigation }: any) => {
           <View style={styles.divider} />
 
           <Text style={styles.sectionTitle}>Receipt</Text>
-          <View style={styles.imageContainer}>
-            <Icon name="image-off-outline" size={28} color={MUTED} />
-            <Text style={styles.imagePlaceholderText}>Receipt not uploaded</Text>
-          </View>
+          {expense.receiptUrl ? (
+            <Image
+              source={{ uri: expense.receiptUrl }}
+              style={styles.receiptImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.imageContainer}>
+              <Icon name="image-off-outline" size={28} color={MUTED} />
+              <Text style={styles.imagePlaceholderText}>Receipt not uploaded</Text>
+            </View>
+          )}
         </View>
 
         {expenseId ? (
@@ -150,6 +159,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   imagePlaceholderText: { color: MUTED, fontSize: 13 },
+  receiptImage: {
+    width: '100%',
+    height: 220,
+    borderRadius: 10,
+    backgroundColor: BG,
+  },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',

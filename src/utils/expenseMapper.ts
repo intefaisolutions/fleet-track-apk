@@ -18,6 +18,29 @@ function formatIsoDate(value: unknown): string {
   return d.toISOString().slice(0, 10);
 }
 
+function resolveVehicleReg(item: Record<string, unknown>): string {
+  if (typeof item.vehicle === 'string' && item.vehicle.trim()) {
+    return item.vehicle.trim();
+  }
+
+  const vehicleObj = item.vehicle;
+  if (vehicleObj && typeof vehicleObj === 'object') {
+    const reg = (vehicleObj as Record<string, unknown>).registrationNumber;
+    if (reg != null) return String(reg);
+  }
+
+  const vehicleId = item.vehicleId;
+  if (typeof vehicleId === 'string' && vehicleId.trim()) {
+    return vehicleId.trim();
+  }
+  if (vehicleId && typeof vehicleId === 'object') {
+    const reg = (vehicleId as Record<string, unknown>).registrationNumber;
+    if (reg != null) return String(reg);
+  }
+
+  return '';
+}
+
 function buildTitle(item: Record<string, unknown>): string {
   const category = String(item.category ?? 'OTHER');
   const details = (item.categoryDetails as Record<string, unknown>) || {};
@@ -43,6 +66,12 @@ function buildTitle(item: Record<string, unknown>): string {
     return toll ? `${toll} (Toll)` : 'Toll expense';
   }
 
+  if (category === 'SERVICE') {
+    const center = details.serviceCenter ?? description;
+    const type = details.serviceType ?? 'Service';
+    return center ? `${center} (${type})` : 'Service expense';
+  }
+
   if (description) return description;
   return category.charAt(0) + category.slice(1).toLowerCase();
 }
@@ -50,24 +79,38 @@ function buildTitle(item: Record<string, unknown>): string {
 export function mapExpenseToUi(item: Record<string, unknown>): Expense {
   const category = String(item.category ?? 'OTHER').toUpperCase();
   const meta = CATEGORY_ICONS[category] ?? CATEGORY_ICONS.OTHER;
-  const vehicle =
-    typeof item.vehicle === 'string'
-      ? item.vehicle
-      : (item.vehicle as Record<string, unknown>)?.registrationNumber?.toString() ??
-        '';
+  const vehicle = resolveVehicleReg(item).replace(/\s/g, '');
+
+  const receiptUrl =
+    typeof item.receiptUrl === 'string' && item.receiptUrl.trim()
+      ? item.receiptUrl.trim()
+      : undefined;
 
   return {
     id: String(item.id ?? item._id),
     title: buildTitle(item),
     date: formatIsoDate(item.expenseDate ?? item.date),
     amount: String(item.amount ?? '0'),
-    vehicle: vehicle.replace(/\s/g, ''),
+    vehicle,
     icon: meta.icon,
     iconBg: meta.iconBg,
     category,
+    receiptUrl,
   };
 }
 
-export function mapExpensesToUi(items: Record<string, unknown>[]): Expense[] {
-  return items.map(mapExpenseToUi);
+export function normalizeExpenseList(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>;
+    if (Array.isArray(obj.expenses)) return obj.expenses as Record<string, unknown>[];
+    if (Array.isArray(obj.items)) return obj.items as Record<string, unknown>[];
+    if (Array.isArray(obj.data)) return obj.data as Record<string, unknown>[];
+    if (obj._id != null || obj.id != null) return [obj];
+  }
+  return [];
+}
+
+export function mapExpensesToUi(items: unknown): Expense[] {
+  return normalizeExpenseList(items).map(mapExpenseToUi);
 }

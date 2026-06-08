@@ -8,6 +8,7 @@ export function buildFuelExpensePayload(params: {
   total: string;
   station: string;
   paymentMethod: string;
+  receiptUrl?: string;
 }) {
   return {
     category: 'FUEL',
@@ -15,6 +16,7 @@ export function buildFuelExpensePayload(params: {
     description: `${params.station} (Fuel)`,
     expenseDate: params.date || getLocalIsoDate(),
     odometerKm: params.odometer ? parseFloat(params.odometer) : undefined,
+    receiptUrl: params.receiptUrl,
     categoryDetails: {
       station: params.station,
       litres: parseFloat(params.litres) || 0,
@@ -30,12 +32,14 @@ export function buildTollExpensePayload(params: {
   paymentType: string;
   tripPurpose?: string;
   date?: string;
+  receiptUrl?: string;
 }) {
   return {
     category: 'TOLL',
     amount: parseFloat(params.amount) || 0,
     description: `${params.tollName} (Toll)`,
     expenseDate: params.date || getLocalIsoDate(),
+    receiptUrl: params.receiptUrl,
     categoryDetails: {
       tollName: params.tollName,
       paymentType: params.paymentType,
@@ -53,6 +57,54 @@ export function buildRepairRequestPayload(params: {
     title: params.title.trim(),
     description: params.description.trim(),
     receiptUrl: params.receiptUrl,
+  };
+}
+
+export function buildServiceExpensePayload(params: {
+  date: string;
+  serviceType: string;
+  serviceCenter: string;
+  amount: string;
+  odometer?: string;
+  notes?: string;
+  receiptUrl?: string;
+}) {
+  const serviceType = params.serviceType.trim();
+  const serviceCenter = params.serviceCenter.trim();
+
+  return {
+    category: 'SERVICE',
+    amount: parseFloat(params.amount) || 0,
+    description: `${serviceCenter} (${serviceType})`,
+    expenseDate: params.date || getLocalIsoDate(),
+    odometerKm: params.odometer ? parseFloat(params.odometer) : undefined,
+    receiptUrl: params.receiptUrl,
+    categoryDetails: {
+      serviceType,
+      serviceCenter,
+      notes: params.notes?.trim(),
+    },
+  };
+}
+
+export function buildOtherExpensePayload(params: {
+  cost: string;
+  description: string;
+  date?: string;
+  receiptUrl?: string;
+}) {
+  const desc = params.description.trim();
+
+  return {
+    category: 'OTHER',
+    amount: parseFloat(params.cost.replace(/,/g, '')) || 0,
+    description: desc,
+    expenseDate: params.date || getLocalIsoDate(),
+    receiptUrl: params.receiptUrl,
+    categoryDetails: {
+      type: 'OTHER_EXPENSE',
+      description: desc,
+    },
   };
 }
 
